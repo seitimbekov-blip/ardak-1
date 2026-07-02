@@ -27,6 +27,9 @@ STATUS_FILLS = {
 HEADER_FILL = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
 HEADER_FONT = Font(bold=True)
 
+# Единое обоснование для исключения лота, используется всегда (подтверждено Ардаком).
+EXCLUSION_REASON = "в связи с корректировкой бюджета"
+
 
 def _format_value(value) -> str:
     if value is None:
@@ -151,11 +154,17 @@ def export_em_agent_file(
     """Формирует файл, готовый к загрузке в em_agent.py.
 
     Для ДОБАВИТЬ/ИЗМЕНИТЬ используется исходная строка SAP (полная структура
-    колонок, известна em_agent.py), с перезаписанной колонкой "Тип действия"
-    рассчитанным значением. Для ИСКЛЮЧИТЬ (лота уже нет в SAP) строка
-    собирается из полей Портала, перенесённых в соответствующие колонки SAP
-    по маппингу; недостающие поля остаются пустыми - это лучшее доступное
-    приближение без доступа к точной схеме em_agent.py.
+    колонок, совпадает с официальным шаблоном загрузочного файла Портала),
+    с перезаписанной колонкой "Тип действия" рассчитанным значением. Для
+    ИСКЛЮЧИТЬ (лота уже нет в SAP) строка собирается из полей Портала,
+    перенесённых в соответствующие колонки SAP по маппингу.
+
+    Колонка "№" (номер лота в ИСЭЗ/Портале) обязательна для ИЗМЕНИТЬ и
+    ИСКЛЮЧИТЬ (переносится из Портала) и заполняется "#N/A" для ДОБАВИТЬ
+    (лота ещё нет на Портале - подтверждено на реальном образце загрузочного
+    файла). Колонка "Причина исключения" для ИСКЛЮЧИТЬ всегда заполняется
+    единым обоснованием "в связи с корректировкой бюджета" (подтверждено
+    Ардаком - используется всегда, независимо от лота).
     """
     wb = Workbook()
     ws = wb.active
@@ -170,6 +179,8 @@ def export_em_agent_file(
 
     lot_id_col = sap_result.column_map.get("lot_id")
     action_col = sap_result.column_map.get("action_type_reference")
+    isez_number_col = sap_result.column_map.get("isez_number")
+    exclusion_reason_col = sap_result.column_map.get("exclusion_reason")
 
     exportable = [r for r in report.results if r.status != LotStatus.UNCHANGED]
 
@@ -190,6 +201,15 @@ def export_em_agent_file(
 
         if action_col:
             row_values[action_col] = action_value
+
+        if isez_number_col:
+            if result.status == LotStatus.ADD:
+                row_values[isez_number_col] = "#N/A"
+            elif result.portal_record is not None:
+                row_values[isez_number_col] = result.portal_record.fields.get("isez_number")
+
+        if result.status == LotStatus.REMOVE and exclusion_reason_col:
+            row_values[exclusion_reason_col] = EXCLUSION_REASON
 
         ws.append([row_values.get(c) for c in range(1, max_col + 1)])
 
