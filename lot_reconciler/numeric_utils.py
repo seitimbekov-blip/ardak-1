@@ -20,16 +20,26 @@ def to_float(value) -> Optional[float]:
         return None
 
 
+_EMPTY_PLACEHOLDERS = {"-", "--", "н/д", "нет"}
+
+
+def norm_text(v) -> str:
+    """Нормализует текстовое значение: None и распространенные плейсхолдеры
+    пустого значения ('-', 'н/д' и т.п., используются и в SAP, и на Портале)
+    приводятся к пустой строке, чтобы не считаться расхождением."""
+    if v is None:
+        return ""
+    text = " ".join(str(v).strip().lower().split())
+    if text in _EMPTY_PLACEHOLDERS:
+        return ""
+    return text
+
+
 def values_equal(a, b, *, numeric_tolerance: float = 0.01) -> bool:
     """Сравнивает два значения ячеек: числа - с допуском, текст - без учета
-    регистра и лишних пробелов, None/пустая строка считаются эквивалентными."""
+    регистра, лишних пробелов и плейсхолдеров пустого значения."""
     a_num, b_num = to_float(a), to_float(b)
     if a_num is not None and b_num is not None:
         return abs(a_num - b_num) < numeric_tolerance
-
-    def norm_text(v) -> str:
-        if v is None:
-            return ""
-        return " ".join(str(v).strip().lower().split())
 
     return norm_text(a) == norm_text(b)

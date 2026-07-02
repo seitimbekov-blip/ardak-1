@@ -68,17 +68,18 @@ def resolve_columns(
 
     for canonical_field, spec in field_config.items():
         column_idx: Optional[int] = None
-        fixed_letter = spec.get("column")
-        if fixed_letter:
-            try:
-                candidate = column_index_from_string(fixed_letter)
-                if candidate <= max_col:
-                    column_idx = candidate
-            except ValueError:
-                column_idx = None
-        if column_idx is None:
-            aliases = spec.get("aliases") or []
+        aliases = spec.get("aliases") or []
+        if aliases:
             column_idx = find_column_by_aliases(combined_headers, aliases)
+        if column_idx is None:
+            fixed_letter = spec.get("column")
+            if fixed_letter:
+                try:
+                    candidate = column_index_from_string(fixed_letter)
+                    if candidate <= max_col:
+                        column_idx = candidate
+                except ValueError:
+                    column_idx = None
         if column_idx is None:
             unresolved.append(canonical_field)
         else:

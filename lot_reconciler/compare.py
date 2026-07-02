@@ -14,7 +14,7 @@ from lot_reconciler.models import (
     LotStatus,
     ReconciliationReport,
 )
-from lot_reconciler.numeric_utils import to_float, values_equal
+from lot_reconciler.numeric_utils import norm_text, to_float, values_equal
 from lot_reconciler.portal_loader import PortalLoadResult
 from lot_reconciler.sap_loader import SapLoadResult
 
@@ -81,6 +81,25 @@ def _select_actual_sap_versions(
     return actuals, anomalies
 
 
+def _address_equal(sap_value, portal_value) -> bool:
+    """Портал автоматически добавляет КАТО-код и название региона/района перед
+    адресом, введенным в SAP (например, SAP='г.Алматы (ДРБ)', Портал='751110000,
+    г.Алматы, Алмалинский район, г.Алматы (ДРБ)'). Поэтому вместо точного
+    совпадения проверяем вхождение одной строки в другую после нормализации."""
+    a, b = norm_text(sap_value).replace(",", " "), norm_text(portal_value).replace(",", " ")
+    a, b = " ".join(a.split()), " ".join(b.split())
+    if not a and not b:
+        return True
+    if not a or not b:
+        return False
+    return a in b or b in a
+
+
+_FIELD_COMPARATORS = {
+    "address": _address_equal,
+}
+
+
 def _compare_records(sap_rec: LotRecord, portal_rec: LotRecord) -> List[FieldDiff]:
     diffs: List[FieldDiff] = []
     for field_name in ALL_COMPARE_FIELDS:
@@ -88,7 +107,8 @@ def _compare_records(sap_rec: LotRecord, portal_rec: LotRecord) -> List[FieldDif
             continue
         sap_value = sap_rec.fields.get(field_name)
         portal_value = portal_rec.fields.get(field_name)
-        if not values_equal(sap_value, portal_value):
+        comparator = _FIELD_COMPARATORS.get(field_name, values_equal)
+        if not comparator(sap_value, portal_value):
             diffs.append(
                 FieldDiff(
                     field=field_name,

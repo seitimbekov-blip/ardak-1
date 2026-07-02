@@ -28,7 +28,10 @@ from lot_reconciler.models import Anomaly, LotRecord, Source
 from lot_reconciler.numeric_utils import to_float
 
 HEADER_ROWS = [9]
-DATA_START_ROW = 12
+# Сразу после заголовка нередко идет служебная строка с номерами колонок
+# (1,2,3,...) - она отбрасывается как аномалия "нет номера лота", поэтому
+# стартуем сразу после заголовка, а не с жестко заданного отступа.
+DATA_START_ROW = 10
 
 _CATEGORY_SEPARATOR_RE = re.compile(
     r"^\s*\d+\.\s*(товары|работы|услуги)\s*$", re.IGNORECASE

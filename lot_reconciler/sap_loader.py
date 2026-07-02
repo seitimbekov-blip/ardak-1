@@ -25,7 +25,11 @@ from lot_reconciler.models import Anomaly, LotRecord, Source
 from lot_reconciler.numeric_utils import to_float
 
 HEADER_ROWS = [4, 5, 6]
-DATA_START_ROW = 8
+# Реальные выгрузки иногда содержат строку с числовыми номерами колонок (1,2,3,...)
+# сразу после заголовков (перед первой строкой данных) - она автоматически
+# отбрасывается как аномалия "нет номера лота", поэтому старт сразу после
+# заголовков надежнее жестко заданной строки 8.
+DATA_START_ROW = 7
 
 
 @dataclass
