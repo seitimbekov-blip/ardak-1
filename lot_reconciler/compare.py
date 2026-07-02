@@ -1,8 +1,10 @@
 """Сопоставление лотов SAP <-> Портал и определение статуса (F5, F6, F7)."""
 from __future__ import annotations
 
+import json
 from collections import defaultdict
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
 
 from lot_reconciler.models import (
     ALL_COMPARE_FIELDS,
@@ -17,6 +19,19 @@ from lot_reconciler.models import (
 from lot_reconciler.numeric_utils import norm_text, to_float, values_equal
 from lot_reconciler.portal_loader import PortalLoadResult
 from lot_reconciler.sap_loader import SapLoadResult
+
+_METHOD_CODE_EQUIVALENTS_PATH = (
+    Path(__file__).resolve().parent.parent / "config" / "method_code_equivalents.json"
+)
+
+
+def _load_method_code_equivalents() -> Set[Tuple[str, str]]:
+    with open(_METHOD_CODE_EQUIVALENTS_PATH, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    pairs = set()
+    for sap_code, portal_code in data.get("pairs", []):
+        pairs.add((sap_code.strip().upper(), portal_code.strip().upper()))
+    return pairs
 
 _ZERO_TOLERANCE = 0.01
 
@@ -95,8 +110,21 @@ def _address_equal(sap_value, portal_value) -> bool:
     return a in b or b in a
 
 
+_METHOD_CODE_EQUIVALENTS = _load_method_code_equivalents()
+
+
+def _method_equal(sap_value, portal_value) -> bool:
+    """SAP и Портал кодируют один и тот же способ закупки по-разному
+    (например, SAP='ЗЦП' / Портал='ЦП') - см. config/method_code_equivalents.json."""
+    a, b = norm_text(sap_value).upper(), norm_text(portal_value).upper()
+    if a == b:
+        return True
+    return (a, b) in _METHOD_CODE_EQUIVALENTS or (b, a) in _METHOD_CODE_EQUIVALENTS
+
+
 _FIELD_COMPARATORS = {
     "address": _address_equal,
+    "method": _method_equal,
 }
 
 
